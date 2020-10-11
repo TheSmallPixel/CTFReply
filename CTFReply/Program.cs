@@ -21,7 +21,8 @@ namespace CTFReply
 
         [STAThread]
         public static void Main(String[] args)
-        {
+        {//++++++++++[
+
             var wPath = Console.ReadLine();
             var cd = Console.ReadLine();
             int count = int.Parse(Console.ReadLine());
@@ -36,6 +37,14 @@ namespace CTFReply
             gen.Add(new JS3());
             gen.Add(new Py3());
             gen.Add(new Php());
+            gen.Add(new Php2());
+            gen.Add(new Shell());
+            gen.Add(new Shell2());
+            gen.Add(new JS4());
+            gen.Add(new Shell3());
+            gen.Add(new Shell4());
+            gen.Add(new Php3());
+            gen.Add(new Java4());
             while (true)
             {
                 string qr = System.IO.Directory.GetFiles(cd, "*.png").FirstOrDefault();
@@ -43,74 +52,191 @@ namespace CTFReply
                 if (string.IsNullOrWhiteSpace(qr) || string.IsNullOrWhiteSpace(zip)) break;
 
 
-                BarcodeResult Result = BarcodeReader.QuicklyReadOneBarcode(qr);
-                if (Result == null) break;
                 Regex regex = new Regex("\\\"+[\\w]+\\\"");
                 Regex rp3 = new Regex("(?<=param2 = )+[\\d]+");
+                Regex rp3v = new Regex("(?<=param2=)+[\\d]+");
+                BarcodeResult Result = BarcodeReader.QuicklyReadOneBarcode(qr);
+                if (Result == null) break;
 
-                var p1 = regex.Matches(Result.Text)[0].Value.Trim('"');
-                var p2 = regex.Matches(Result.Text)[1].Value.Trim('"');
-                var p3 = 0;
-                var p3m = rp3.Matches(Result.Text);
-                if (p3m.Count > 0) p3 = int.Parse(p3m[0].Value);
-
-                Console.WriteLine($"Data:\np1: {p1}\np2: {p2}\np3: {p3}");
-                var pass = string.Empty;
-                cd = wPath + "\\" + count;
-                DirectoryInfo di = Directory.CreateDirectory(cd);
-                using (Ionic.Zip.ZipFile zipF = Ionic.Zip.ZipFile.Read(zip))
+                if (regex.Matches(Result.Text).Count == 0)
                 {
-                    zipF.Name = "File" + count;
-                    var genList = gen.GetEnumerator();
-                    var found = false;
-                    while (genList.MoveNext())
+
+                    var list = new List<DataPoint>();
+                    var pointer = 0;
+                    var outp = "";
+                    for (int i = 0; i < Result.Text.Length && i >= 0; i++)
                     {
+                        var c = Result.Text[i];
+                        if (c == '.')
+                        {
+                            outp += (char)list.FirstOrDefault(x => x.index == pointer && x.operation == 'i').data;
+                        }
+                        if (c == '>') { pointer++; }
+                        if (c == '<') { pointer--; }
+                        if (c == '+')
+                        {
+                            if (list.Exists(x => x.index == pointer))
+                            {
+                                list.FirstOrDefault(x => x.index == pointer).data++;
+                            }
+                            else
+                            {
+                                list.Add(new DataPoint() { index = pointer, data = 1, operation = 'i' });
+                            }
+                        }
+                        if (c == '-')
+                        {
+                            if (list.Exists(x => x.index == pointer))
+                            {
+                                list.FirstOrDefault(x => x.index == pointer).data--;
+                            }
+                            else
+                            {
+                                list.Add(new DataPoint() { index = pointer, data = -1, operation = 'i' });
+                            }
+                        }
+                        if (c == '[')
+                        {
+                            if (!list.Exists(x => x.index == pointer && x.operation == 'f'))
+                                list.Add(new DataPoint() { realIndex = i, index = pointer, data = list.Where(x => x.operation == 'i').FirstOrDefault(x => x.index == pointer).data, operation = 'f' });
+                        }
+                        if (c == ']')
+                        {
+                            var finit = list.Last(x => x.index < i && x.operation == 'f');
+
+                            if (list.FirstOrDefault(x => x.index == finit.index).data > 0)
+                            {
+
+                                i = finit.realIndex;
+
+                            }
+                        }
+                        
+                    }
+                    var pass = outp;
+                    cd = wPath + "\\" + count;
+                    DirectoryInfo di = Directory.CreateDirectory(cd);
+                    using (Ionic.Zip.ZipFile zipF = Ionic.Zip.ZipFile.Read(zip))
+                    {
+                        zipF.Name = "File" + count;
+                        var found = false;
                         try
                         {
-                            pass = genList.Current.run(p1, p2, p3);
                             zipF.Password = pass;
                             zipF.ExtractAll(cd, Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
                             found = true;
                             Console.Write("[V]");
-                            break;
                         }
                         catch (Exception e)
                         {
                             Console.Write("[X]");
                         }
-                    }
-                    Console.WriteLine();
-                    if (!found)
-                    {
-                        Console.WriteLine("Generatore fallito.");
-                        Console.WriteLine(Result.Text);
-                        var ptr = Marshal.StringToHGlobalUni(Result.Text);
-                        SetClipboardData(13, ptr);
-                        CloseClipboard();
-                        Marshal.FreeHGlobal(ptr);
-                        try
-                        {
-                            Console.WriteLine("Inserire la password: ");
-                            pass = Console.ReadLine();
-                            zipF.Password = pass;
-                            zipF.ExtractAll(cd, Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
-                            found = true;
-                            Console.WriteLine("[V] script:  Umano");
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine("Errore critico...");
-                            break;
-                        }
-                        
-                    }
 
+                        Console.WriteLine();
+                        if (!found)
+                        {
+                            Console.WriteLine("Generatore fallito. " + pass);
+                            Console.WriteLine(Result.Text);
+                            var ptr = Marshal.StringToHGlobalUni(Result.Text);
+                            SetClipboardData(13, ptr);
+                            CloseClipboard();
+                            Marshal.FreeHGlobal(ptr);
+                            try
+                            {
+                                Console.WriteLine("Inserire la password: ");
+                                pass = Console.ReadLine();
+                                zipF.Password = pass;
+                                zipF.ExtractAll(cd, Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
+                                found = true;
+                                Console.WriteLine("[V] script:  Umano");
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("Errore critico...");
+                                break;
+                            }
+
+                        }
+
+                    }
+                    count++;
                 }
-                Console.WriteLine("==========[DONE]=============");
+                else
+                {
 
-                count++;
+
+                    var p1 = regex.Matches(Result.Text)[0].Value.Trim('"');
+                    var p2 = regex.Matches(Result.Text)[1].Value.Trim('"');
+                    var p3 = 0;
+                    var p3m = rp3.Matches(Result.Text);
+                    var p3v = rp3v.Matches(Result.Text);
+                    if (p3m.Count > 0) p3 = int.Parse(p3m[0].Value);
+                    if (p3v.Count > 0 && p3 == 0) p3 = int.Parse(p3v[0].Value);
+                    Console.WriteLine($"Data:\np1: {p1}\np2: {p2}\np3: {p3}");
+                    var pass = string.Empty;
+                    cd = wPath + "\\" + count;
+                    DirectoryInfo di = Directory.CreateDirectory(cd);
+                    using (Ionic.Zip.ZipFile zipF = Ionic.Zip.ZipFile.Read(zip))
+                    {
+                        zipF.Name = "File" + count;
+                        var genList = gen.GetEnumerator();
+                        var found = false;
+                        while (genList.MoveNext())
+                        {
+                            try
+                            {
+                                pass = genList.Current.run(p1, p2, p3);
+                                zipF.Password = pass;
+                                zipF.ExtractAll(cd, Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
+                                found = true;
+                                Console.Write("[V]");
+                                break;
+                            }
+                            catch (Exception e)
+                            {
+                                Console.Write("[X]");
+                            }
+                        }
+                        Console.WriteLine();
+                        if (!found)
+                        {
+                            Console.WriteLine("Generatore fallito. " + pass);
+                            Console.WriteLine(Result.Text);
+                            var ptr = Marshal.StringToHGlobalUni(Result.Text);
+                            SetClipboardData(13, ptr);
+                            CloseClipboard();
+                            Marshal.FreeHGlobal(ptr);
+                            try
+                            {
+                                Console.WriteLine("Inserire la password: ");
+                                pass = Console.ReadLine();
+                                zipF.Password = pass;
+                                zipF.ExtractAll(cd, Ionic.Zip.ExtractExistingFileAction.OverwriteSilently);
+                                found = true;
+                                Console.WriteLine("[V] script:  Umano");
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("Errore critico...");
+                                break;
+                            }
+
+                        }
+
+                    }
+                    Console.WriteLine("==========[DONE]=============");
+
+                    count++;
+                }
             }
             Console.ReadLine();
+        }
+        public class DataPoint
+        {
+            public int index;
+            public char operation;
+            public int data;
+            public int realIndex;
         }
         public static string Reverse(string s)
         {
@@ -435,8 +561,9 @@ namespace CTFReply
                 {
                     if (i % 2 == 0)
                     {
-                        var cc = iter.Key +""+ iter.Value;
-                        if (Char.IsDigit(iter.Key) && Char.IsDigit(iter.Value) && !o)
+                        var cc = iter.Key + "" + iter.Value;
+
+                        if (int.TryParse(cc, out int aaaa) && !o)
                         {
                             o = true;
                             var meh = param0 + param2.ToString() + param1;
@@ -445,7 +572,7 @@ namespace CTFReply
                                 var x = 13;
                                 if (j % 2 == 0)
                                     x = 77;
-                                output += meh[(j + x) % meh.Length];
+                                output += meh[(j + x) % (meh.Length)];
                                 output = Reverse(output);
                             }
                         }
@@ -454,13 +581,12 @@ namespace CTFReply
                             output += cc;
                             output = Reverse(output);
                         }
-
                     }
                     else
                     {
                         if (iter.Key == iter.Value)
                         {
-                            output += iter.Value + iter.Key;
+                            output += iter.Value + "" + iter.Key;
                         }
                         else if (iter.Key > iter.Value)
                         {
@@ -470,7 +596,6 @@ namespace CTFReply
                         {
                             output += iter.Value;
                         }
-
                     }
                     i += 1;
                 }
@@ -527,8 +652,334 @@ namespace CTFReply
                 return output;
             }
         }
-    }
+        public class Php2 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                //var param0 = "GzZq2gLr9quleVn5oB7IRDbc2749pABg";
+                //var param1 = "P6aHWqbvW6OlilNfqy1Rsa8YYoLpvX0Q";
+                //var param2 = 1084;
+                var output = "";
 
+                for (int i = 0, j = 0; i < param0.Length && j < param1.Length; i++, j++)
+                {
+                    var c0 = param0[i];
+                    var c1 = param1[j];
+
+                    if (i % 2 == 0)
+                    {
+                        output += String.Concat(c1, c0);
+                    }
+                    else
+                    {
+                        output += String.Concat(c0, c1);
+                    }
+                }
+
+                for (var k = 0; k < output.Length; k++)
+                {
+                    int d, s;
+                    if (k % 2 == 0)
+                    {
+                        s = k * param0.Length + param2 * 3;
+                        d = 1 + param2 + k;
+                    }
+                    else
+                    {
+                        s = k * 2 * param2;
+                        d = (15 + param1.Length) * k;
+                    }
+                    s = s % output.Length;
+                    d = d % output.Length;
+                    var x = output[d];
+                    var char_array = output.ToCharArray();
+                    char_array[d] = char_array[s];
+                    char_array[s] = x;
+                    output = new string(char_array);
+                    output = Reverse(output);
+                }
+                output = output.Substring(0, 32);
+                return output;
+            }
+        }
+        public class Shell : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                for (int i = 0, j = 0; i < param0.Length && j < param1.Length; i++, j++)
+                {
+                    var c0 = param0.Substring(i, 1).FirstOrDefault();
+                    var c1 = param1.Substring(j, 1).FirstOrDefault();
+
+                    if (char.IsNumber(c0))
+                    {
+                        param2 += (int.Parse(c0.ToString()));
+                    }
+                    if (char.IsNumber(c1))
+                    {
+                        param2 += (int.Parse(c1.ToString()));
+                    }
+                    if (char.IsLetter(c0))
+                    {
+                        output += c0;//mm,...
+                    }
+                    if (char.IsLetter(c1))
+                    {
+                        output += c1;//mm,...
+                    }
+                    if (char.IsLetter(c0) && char.IsLetter(c1))
+                    {
+                        //output = Reverse(output);
+                        var reverse = "";
+                        for (int k = output.Length - 1; k >= 0; k--)
+                        {
+                            reverse = reverse + output.Substring(k, 1);
+                        }
+                        output = reverse;
+                    }
+                }
+                output = param2.ToString() + output;
+                return output.Substring(0, 32);
+            }
+        }
+        public class Shell2 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                for (int h = 0; h < param2; h += 25)
+                {
+                    for (int i = 0, j = 0; i < param0.Length || j < param1.Length; i++, j++)
+                    {
+                        var c0 = param0.Substring(i, 1).FirstOrDefault();
+                        var c1 = param1.Substring(j, 1).FirstOrDefault();
+                        if (char.IsNumber(c0) && char.IsNumber(c1))
+                        {
+                            output += (param2 * (int.Parse(c0.ToString()) + int.Parse(c1.ToString()) + h));
+                        }
+                        else
+                        {
+                            var x = h + i;
+                            if (x % 2 != 0)
+                            {
+                                output += c0;
+                            }
+                            else
+                            {
+                                output += c1;
+                            }
+                        }
+                    }
+                    output = Reverse(output);
+                }
+                return output.Substring(0, 32);
+            }
+        }
+        public class JS4 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                for (int i = 0, j = param1.Length - 1; i < param0.Length || j >= 0; i++, j--)
+                {
+                    var c0 = param0[i];
+                    var c1 = param1[j];
+                    if (output.IndexOf(c0) != 0)
+                    {
+                        if (i % 2 != 0)
+                        {
+                            output += c1;
+                        }
+                        else
+                        {
+                            output += c0;
+                        }
+                    }
+                    if (c0 > c1)
+                    {
+                        output += c0;
+                    }
+                    else if (c0 < c1)
+                    {
+                        output = c1 + "" + output;
+                    }
+                    else
+                    {
+                        output = Reverse(output);
+                        output += c1;
+                    }
+                }
+                return Reverse(output).Substring(0, param0.Length);
+            }
+        }
+        public class Shell3 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                var f = false;
+                for (int i = 0, j = 0; i < param0.Length || j < param1.Length; i++, j++)
+                {
+                    var c0 = param0.Substring(i, 1).FirstOrDefault();
+                    var c1 = param1.Substring(j, 1).FirstOrDefault();
+                    if (char.IsNumber(c0) && char.IsNumber(c1))
+                    {
+                        param2 = param2 - i - (c0 * c1);
+                        if (param2 < 1)
+                        {
+                            param2 *= -1;
+                            f = !f;
+                        }
+                        output += param2;
+                    }
+                    else
+                    {
+                        if (f && char.IsUpper(c0))
+                        {
+                            output += c0;
+                        }
+                        else
+                        {
+                            output += c1 + "" + c0;
+                        }
+                    }
+                    if (true)
+                    {
+                        output = Reverse(output);
+                    }
+
+                }
+                return output.Substring(0, 32);
+            }
+        }
+        public class Shell4 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                var f = false;
+                for (int i = 0, j = 0; i < param0.Length || j < param1.Length; i++, j++)
+                {
+                    var c0 = param0.Substring(i, 1).FirstOrDefault();
+                    var c1 = param1.Substring(j, 1).FirstOrDefault();
+                    if (char.IsNumber(c0) && char.IsNumber(c1))
+                    {
+                        param2 = param2 - i - (int.Parse(c0.ToString()) * int.Parse(c1.ToString()));
+                        if (param2 < 1)
+                        {
+                            param2 *= -1;
+                            f = !f;
+                        }
+                        output += param2;
+                    }
+                    else
+                    {
+                        if (f && char.IsUpper(c0))
+                        {
+                            output += c0;
+                        }
+                        else
+                        {
+                            output += c1 + "" + c0;
+                        }
+                    }
+                    if (true)
+                    {
+                        output = Reverse(output);
+                    }
+
+                }
+                return output.Substring(0, 32);
+            }
+        }
+        public class Php3 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                var l = new string[] {"z",
+                                        "0",
+                                        "T",
+                                        "r",
+                                        "F",
+                                        "1",
+                                        "s",
+                                        "3",
+                                        "G",
+                                        "n"};
+
+                for (int i = 0, j = 0; i < param0.Length || j < param1.Length; i++, j++)
+                {
+                    var c0 = param0[i];
+                    var c1 = param1[j];
+                    if (char.IsNumber(c0) && char.IsNumber(c1))
+                    {
+                        output += c0;
+                        output = Reverse(output);
+                        output += c1;
+                    }
+                    else
+                    {
+                        if (char.IsNumber(c0))
+                        {
+                            output += l[(int.Parse(c0.ToString()) + param2) % l.Count()];
+                        }
+                        else
+                        {
+                            output = Reverse(output);
+                            output += c0;
+                        }
+                        output += c1;
+                    }
+                }
+
+                return output.Substring(0, 32);
+            }
+        }
+        public class Java4 : Generate
+        {
+            public string run(string param0, string param1, int param2)
+            {
+                var output = "";
+                var pp = param0 + param1;
+                for (int i = 0, j = 0; i < param0.Length && j < param1.Length; i++, j++)
+                {
+                    var c0 = param0[i];
+                    var c1 = param1[j];
+                    if (char.IsDigit(c0) && char.IsDigit(c1))
+                    {
+                        param2 += int.Parse(c0.ToString()) * int.Parse(c1.ToString());
+                        output += (pp[param2 % pp.Length]);
+                        output += (c0);
+                        output = Reverse(output);
+                        output += (c1);
+                    }
+                    else
+                    {
+                        if (char.IsDigit(c0))
+                        {
+                            param2 += int.Parse(c0.ToString());
+                            output += (param1[param2 % param1.Length]);
+                            output = Reverse(output);
+                        }
+                        output += (c0);
+                        output = Reverse(output);
+                        if (char.IsDigit(c1))
+                        {
+                            param2 += int.Parse(c1.ToString());
+                            output += (param0[param2 % param0.Length]);
+                            output = Reverse(output);
+                        }
+                        output += (c0);
+                        output = Reverse(output);
+                    }
+
+                }
+                return output.Substring(0, 32);
+            }
+        }
+    }
 
     //public class Codding100
     //{
